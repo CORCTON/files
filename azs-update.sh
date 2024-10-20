@@ -37,8 +37,9 @@ fi
 
 # 定义 Docker 命令函数
 run_docker_commands() {
-    echo "正在拉取 Docker 镜像..."
-    docker pull corton2233/azs-frontend:v$VERSION || { echo "错误: 拉取镜像失败"; return 1; }
+    local version="$1"
+    echo "正在拉取 Docker 镜像 corton2233/azs-frontend:v$version ..."
+    docker pull corton2233/azs-frontend:v$version || { echo "错误: 拉取镜像失败"; return 1; }
 
     echo "正在停止旧容器..."
     docker stop azs-frontend || echo "警告: 停止旧容器失败，可能不存在"
@@ -47,7 +48,7 @@ run_docker_commands() {
     docker rm azs-frontend || echo "警告: 删除旧容器失败，可能不存在"
 
     echo "正在启动新容器..."
-    docker run --name azs-frontend -p 3000:3000 -d corton2233/azs-frontend:v$VERSION || { echo "错误: 启动新容器失败"; return 1; }
+    docker run --name azs-frontend -p 3000:3000 -d corton2233/azs-frontend:v$version || { echo "错误: 启动新容器失败"; return 1; }
 
     echo "检查新容器是否成功运行..."
     docker ps | grep azs-frontend || { echo "错误: 新容器未能成功运行"; return 1; }
@@ -59,13 +60,14 @@ run_docker_commands() {
 # 部署到单个目标
 deploy_to_target() {
     local target="$1"
+    local version="$2"
     if [ "$target" = "local" ]; then
         echo "在本地执行 Docker 命令..."
-        run_docker_commands
+        run_docker_commands "$version"
     else
         IFS=':' read -r ip password <<< "$target"
         echo "通过 SSH 在远程服务器 $ip 执行 Docker 命令..."
-        sshpass -p "$password" ssh -o StrictHostKeyChecking=no root@$ip "$(typeset -f run_docker_commands); run_docker_commands"
+        sshpass -p "$password" ssh -o StrictHostKeyChecking=no root@$ip "$(typeset -f run_docker_commands); run_docker_commands $version"
     fi
     return $?
 }
@@ -73,7 +75,7 @@ deploy_to_target() {
 # 主要执行逻辑
 for target in "${TARGETS[@]}"; do
     echo "开始部署到目标: $target"
-    if deploy_to_target "$target"; then
+    if deploy_to_target "$target" "$VERSION"; then
         echo "成功部署到目标: $target"
     else
         echo "部署到目标失败: $target"
